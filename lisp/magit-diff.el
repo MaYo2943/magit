@@ -1937,26 +1937,20 @@ section or a child thereof."
       (magit-diff-insert-file-section (or file base) orig status modes nil)))
    ((looking-at "^diff --\
 \\(?:\\(?1:git\\) \\(?:\\(?2:.+?\\) \\(?3:.+?\\)\\)?\
-\\|\\(?:cc\\|combined\\) \\(?4:.+\\)\\)")
+\\|\\(?:cc\\|combined\\) \\(?4:.+\\)\\)\n")
     (let ((status (cond ((equal (match-string 1) "git")        "modified")
                         ((derived-mode-p 'magit-revision-mode) "resolved")
                         (t                                     "unmerged")))
           (orig (match-string 2))
           (file (or (match-string 3) (match-string 4)))
-          (beg (point))
-          header modes)
+          (header (list (match-string 0)))
+          modes)
       ;; `git-diff' ignores `--no-prefix' for new files and renames at least.
       (when (and file orig
                  (string-prefix-p "a/" orig)
                  (string-prefix-p "b/" file))
         (setq orig (substring orig 2))
         (setq file (substring file 2)))
-      (save-excursion
-        (forward-line 1)
-        (setq header (buffer-substring
-                      beg (if (re-search-forward magit-diff-headline-re nil t)
-                              (match-beginning 0)
-                            (point-max)))))
       (magit-delete-line)
       (while (not (or (eobp) (looking-at magit-diff-headline-re)))
         (cond
@@ -1986,7 +1980,11 @@ section or a child thereof."
          (t
           (error "BUG: Unknown extended header: %S"
                  (buffer-substring (point) (line-end-position)))))
+        ;; This header is treated as some sort of special hunk.
+        (unless (string-prefix-p "old mode" (match-string 0))
+          (push (match-string 0) header))
         (magit-delete-match))
+      (setq header (mapconcat #'identity (nreverse header) ""))
       (when orig
         (setq orig (magit-decode-git-path orig)))
       (setq file (magit-decode-git-path file))
